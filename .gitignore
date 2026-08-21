@@ -1,0 +1,16 @@
+.DS_Store
+
+# Java
+target/
+*.class
+
+# Maven wrapper
+.mvn/wrapper/maven-wrapper.jar
+
+# IDEs
+.idea/
+.vscode/
+*.iml
+
+# Logs
+*.log
