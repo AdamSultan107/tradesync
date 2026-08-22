@@ -1,0 +1,7 @@
+trade_id,symbol,quantity,price,currency,trade_date
+,AAPL,100,225.40,USD,2026-08-18
+T002,,50,510.25,USD,2026-08-18
+T003,NVDA,-75,182.10,USD,2026-08-18
+T004,TSLA,20,not-a-price,USD,2026-08-18
+T005,AMZN,10,180.00,not-currency,2026-08-18
+T006,META,15,295.00,USD,not-a-date

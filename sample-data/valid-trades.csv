@@ -1,0 +1,4 @@
+trade_id,symbol,quantity,price,currency,trade_date
+T001,AAPL,100,225.40,USD,2026-08-18
+T002,MSFT,50,510.25,USD,2026-08-18
+T003,NVDA,75,182.10,USD,2026-08-18

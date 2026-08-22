@@ -73,6 +73,14 @@ T001,AAPL,100,225.40,USD,2026-08-18
 T002,MSFT,50,510.25,USD,2026-08-18
 ```
 
+## Sample Data
+
+Sample CSV files are available under `sample-data/`:
+
+- `valid-trades.csv` - valid trade records
+- `invalid-trades.csv` - records with validation failures
+- `duplicate-trades.csv` - duplicate trade identifiers
+
 ## API
 
 Planned API endpoints:
