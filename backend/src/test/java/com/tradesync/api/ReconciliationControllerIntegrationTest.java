@@ -15,6 +15,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.nio.charset.StandardCharsets;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -82,6 +83,72 @@ class ReconciliationControllerIntegrationTest {
     }
 
     @Test
+    void getsReconciliationRunSummary() throws Exception {
+        Long runId = createPriceMismatchRun();
+
+        mockMvc.perform(get("/api/reconciliations/{runId}", runId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.runId").value(runId))
+                .andExpect(jsonPath("$.status").value("COMPLETED"))
+                .andExpect(jsonPath("$.internalTradeCount").value(2))
+                .andExpect(jsonPath("$.externalTradeCount").value(2))
+                .andExpect(jsonPath("$.matchedCount").value(1))
+                .andExpect(jsonPath("$.exceptionCount").value(1));
+    }
+
+    @Test
+    void getsReconciliationResultsWithRelatedTrades() throws Exception {
+        Long runId = createPriceMismatchRun();
+
+        mockMvc.perform(get("/api/reconciliations/{runId}/results", runId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", org.hamcrest.Matchers.hasSize(2)))
+                .andExpect(jsonPath("$[0].resultId").isNumber())
+                .andExpect(jsonPath("$[0].tradeId").value("T001"))
+                .andExpect(jsonPath("$[0].status").value("MATCHED"))
+                .andExpect(jsonPath("$[0].internalTrades[0].source").value("INTERNAL"))
+                .andExpect(jsonPath("$[0].externalTrades[0].source").value("EXTERNAL"))
+                .andExpect(jsonPath("$[1].resultId").isNumber())
+                .andExpect(jsonPath("$[1].tradeId").value("T002"))
+                .andExpect(jsonPath("$[1].status").value("PRICE_MISMATCH"))
+                .andExpect(jsonPath("$[1].internalTrades[0].tradeId").value("T002"))
+                .andExpect(jsonPath("$[1].externalTrades[0].tradeId").value("T002"));
+    }
+
+    @Test
+    void getsExceptionResultsOnly() throws Exception {
+        Long runId = createPriceMismatchRun();
+
+        mockMvc.perform(get("/api/reconciliations/{runId}/exceptions", runId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", org.hamcrest.Matchers.hasSize(1)))
+                .andExpect(jsonPath("$[0].tradeId").value("T002"))
+                .andExpect(jsonPath("$[0].status").value("PRICE_MISMATCH"))
+                .andExpect(jsonPath("$[0].internalTrades[0].tradeId").value("T002"))
+                .andExpect(jsonPath("$[0].externalTrades[0].tradeId").value("T002"));
+    }
+
+    @Test
+    void includesDuplicateTradeRowsForReview() throws Exception {
+        Long runId = createDuplicateRun();
+
+        mockMvc.perform(get("/api/reconciliations/{runId}/results", runId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", org.hamcrest.Matchers.hasSize(1)))
+                .andExpect(jsonPath("$[0].tradeId").value("T001"))
+                .andExpect(jsonPath("$[0].status").value("DUPLICATE"))
+                .andExpect(jsonPath("$[0].internalTrades", org.hamcrest.Matchers.hasSize(2)))
+                .andExpect(jsonPath("$[0].externalTrades", org.hamcrest.Matchers.hasSize(1)));
+    }
+
+    @Test
+    void returnsNotFoundForUnknownReconciliationRun() throws Exception {
+        mockMvc.perform(get("/api/reconciliations/{runId}", 999L))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.message").value("Reconciliation run not found: 999"));
+    }
+
+    @Test
     void returnsBadRequestAndDoesNotPersistWhenCsvIsInvalid() throws Exception {
         MockMultipartFile internalFile = csv("internalFile", """
                 trade_id,symbol,quantity,price,currency,trade_date
@@ -105,6 +172,45 @@ class ReconciliationControllerIntegrationTest {
         assertThat(runRepository.count()).isZero();
         assertThat(tradeRepository.count()).isZero();
         assertThat(resultRepository.count()).isZero();
+    }
+
+    private Long createPriceMismatchRun() throws Exception {
+        MockMultipartFile internalFile = csv("internalFile", """
+                trade_id,symbol,quantity,price,currency,trade_date
+                T001,AAPL,100,225.40,USD,2026-08-18
+                T002,MSFT,50,510.25,USD,2026-08-18
+                """);
+        MockMultipartFile externalFile = csv("externalFile", """
+                trade_id,symbol,quantity,price,currency,trade_date
+                T001,AAPL,100,225.40,USD,2026-08-18
+                T002,MSFT,50,511.00,USD,2026-08-18
+                """);
+
+        mockMvc.perform(multipart("/api/reconciliations")
+                        .file(internalFile)
+                        .file(externalFile))
+                .andExpect(status().isCreated());
+
+        return runRepository.findAll().get(0).getId();
+    }
+
+    private Long createDuplicateRun() throws Exception {
+        MockMultipartFile internalFile = csv("internalFile", """
+                trade_id,symbol,quantity,price,currency,trade_date
+                T001,AAPL,100,225.40,USD,2026-08-18
+                T001,AAPL,100,225.40,USD,2026-08-18
+                """);
+        MockMultipartFile externalFile = csv("externalFile", """
+                trade_id,symbol,quantity,price,currency,trade_date
+                T001,AAPL,100,225.40,USD,2026-08-18
+                """);
+
+        mockMvc.perform(multipart("/api/reconciliations")
+                        .file(internalFile)
+                        .file(externalFile))
+                .andExpect(status().isCreated());
+
+        return runRepository.findAll().get(0).getId();
     }
 
     private MockMultipartFile csv(String partName, String content) {

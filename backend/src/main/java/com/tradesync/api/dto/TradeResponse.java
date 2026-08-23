@@ -1,5 +1,6 @@
 package com.tradesync.api.dto;
 
+import com.tradesync.persistence.entity.TradeEntity;
 import com.tradesync.trade.TradeRecord;
 import com.tradesync.trade.TradeSource;
 
@@ -25,6 +26,18 @@ public record TradeResponse(
                 trade.price(),
                 trade.currency(),
                 trade.tradeDate()
+        );
+    }
+
+    public static TradeResponse from(TradeEntity trade) {
+        return new TradeResponse(
+                trade.getSource(),
+                trade.getTradeId(),
+                trade.getSymbol(),
+                trade.getQuantity(),
+                trade.getPrice(),
+                trade.getCurrency(),
+                trade.getTradeDate()
         );
     }
 }
