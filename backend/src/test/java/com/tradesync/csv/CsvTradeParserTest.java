@@ -52,7 +52,7 @@ class CsvTradeParserTest {
     }
 
     @Test
-    void rejectsDuplicateTradeIdsWithinTheSameSource() {
+    void allowsDuplicateTradeIdsForReconciliationReview() {
         String csv = """
                 trade_id,symbol,quantity,price,currency,trade_date
                 T001,AAPL,100,225.40,USD,2026-08-18
@@ -61,13 +61,10 @@ class CsvTradeParserTest {
 
         CsvTradeParseResult result = parser.parse(new StringReader(csv), TradeSource.INTERNAL);
 
-        assertThat(result.trades()).isEmpty();
-        assertThat(result.errors())
-                .extracting(CsvTradeValidationError::field)
-                .containsExactly("trade_id", "trade_id");
-        assertThat(result.errors())
-                .extracting(CsvTradeValidationError::lineNumber)
-                .containsExactly(2L, 3L);
+        assertThat(result.errors()).isEmpty();
+        assertThat(result.trades())
+                .extracting(TradeRecord::tradeId)
+                .containsExactly("T001", "T001");
     }
 
     @Test

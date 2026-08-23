@@ -14,9 +14,7 @@ import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Currency;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 @Component
@@ -46,7 +44,7 @@ public class CsvTradeParser {
             .get();
 
     public CsvTradeParseResult parse(Reader reader, TradeSource source) {
-        List<RowCandidate> candidates = new ArrayList<>();
+        List<TradeRecord> trades = new ArrayList<>();
         List<CsvTradeValidationError> errors = new ArrayList<>();
 
         try (CSVParser parser = TRADE_CSV_FORMAT.parse(reader)) {
@@ -55,13 +53,13 @@ public class CsvTradeParser {
             }
 
             for (CSVRecord record : parser) {
-                parseRecord(record, source, candidates, errors);
+                parseRecord(record, source, trades, errors);
             }
         } catch (IOException | IllegalArgumentException exception) {
             errors.add(new CsvTradeValidationError(0, "file", "Unable to parse trade CSV file."));
         }
 
-        return rejectDuplicateTradeIds(candidates, errors);
+        return new CsvTradeParseResult(trades, errors);
     }
 
     private boolean validateHeaders(CSVParser parser, List<CsvTradeValidationError> errors) {
@@ -79,7 +77,7 @@ public class CsvTradeParser {
     private void parseRecord(
             CSVRecord record,
             TradeSource source,
-            List<RowCandidate> candidates,
+            List<TradeRecord> trades,
             List<CsvTradeValidationError> errors
     ) {
         long lineNumber = record.getRecordNumber() + 1;
@@ -94,35 +92,10 @@ public class CsvTradeParser {
 
         if (rowErrors.isEmpty()) {
             TradeRecord trade = new TradeRecord(source, tradeId, symbol, quantity, price, currency, tradeDate);
-            candidates.add(new RowCandidate(lineNumber, trade));
+            trades.add(trade);
         } else {
             errors.addAll(rowErrors);
         }
-    }
-
-    private CsvTradeParseResult rejectDuplicateTradeIds(
-            List<RowCandidate> candidates,
-            List<CsvTradeValidationError> errors
-    ) {
-        Map<String, Integer> tradeIdCounts = new HashMap<>();
-        for (RowCandidate candidate : candidates) {
-            tradeIdCounts.merge(candidate.trade.tradeId(), 1, Integer::sum);
-        }
-
-        List<TradeRecord> trades = new ArrayList<>();
-        for (RowCandidate candidate : candidates) {
-            if (tradeIdCounts.get(candidate.trade.tradeId()) > 1) {
-                errors.add(new CsvTradeValidationError(
-                        candidate.lineNumber,
-                        TRADE_ID,
-                        "Duplicate trade ID within source: " + candidate.trade.tradeId()
-                ));
-            } else {
-                trades.add(candidate.trade);
-            }
-        }
-
-        return new CsvTradeParseResult(trades, errors);
     }
 
     private String requiredText(
@@ -213,6 +186,4 @@ public class CsvTradeParser {
         }
     }
 
-    private record RowCandidate(long lineNumber, TradeRecord trade) {
-    }
 }

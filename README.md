@@ -59,7 +59,7 @@ Results and exception workflow
 
 The reconciliation engine compares validated internal and external trade records.
 Records are grouped by trade identifier, checked for duplicates, and compared
-across fields such as symbol, quantity, price, currency, and trade date.
+across supported fields such as quantity, price, and currency.
 
 Financial values are represented with decimal types suitable for monetary data.
 
@@ -108,9 +108,24 @@ Planned API endpoints:
 
 ## Running Locally
 
-Local setup instructions will be added as the application implementation is
-completed.
+Run the backend from the `backend/` directory:
+
+```bash
+cd backend
+mvn spring-boot:run
+```
+
+The health endpoint is available at:
+
+```text
+http://localhost:8080/actuator/health
+```
 
 ## Testing
 
-Test instructions will be added with the backend implementation.
+Run backend tests from the `backend/` directory:
+
+```bash
+cd backend
+mvn test
+```
