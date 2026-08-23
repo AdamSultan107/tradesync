@@ -83,9 +83,12 @@ Sample CSV files are available under `sample-data/`:
 
 ## API
 
-Planned API endpoints:
+Available API endpoints:
 
 - `POST /api/reconciliations` - upload internal and external trade files
+
+Planned API endpoints:
+
 - `GET /api/reconciliations/{id}` - get a reconciliation run summary
 - `GET /api/reconciliations/{id}/results` - list reconciliation results
 - `GET /api/reconciliations/{id}/exceptions` - list exception results
