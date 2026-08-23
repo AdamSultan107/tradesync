@@ -108,7 +108,13 @@ Planned API endpoints:
 
 ## Running Locally
 
-Run the backend from the `backend/` directory:
+Start PostgreSQL from the repository root:
+
+```bash
+docker compose up -d
+```
+
+Run the backend:
 
 ```bash
 cd backend
@@ -129,3 +135,5 @@ Run backend tests from the `backend/` directory:
 cd backend
 mvn test
 ```
+
+Backend tests use an in-memory database and do not require Docker.

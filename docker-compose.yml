@@ -1,0 +1,14 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: tradesync
+      POSTGRES_USER: tradesync
+      POSTGRES_PASSWORD: tradesync
+    ports:
+      - "5432:5432"
+    volumes:
+      - tradesync-postgres-data:/var/lib/postgresql/data
+
+volumes:
+  tradesync-postgres-data:
