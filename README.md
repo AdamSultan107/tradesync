@@ -89,11 +89,8 @@ Available API endpoints:
 - `GET /api/reconciliations/{id}` - get a reconciliation run summary
 - `GET /api/reconciliations/{id}/results` - list reconciliation results
 - `GET /api/reconciliations/{id}/exceptions` - list exception results
-- `GET /actuator/health` - service health check
-
-Planned API endpoints:
-
 - `PATCH /api/exceptions/{id}/resolve` - resolve an exception with a note
+- `GET /actuator/health` - service health check
 
 ## Technology
 

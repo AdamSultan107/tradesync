@@ -4,11 +4,13 @@ import com.tradesync.persistence.repository.ExceptionResolutionRepository;
 import com.tradesync.persistence.repository.ReconciliationResultRepository;
 import com.tradesync.persistence.repository.ReconciliationRunRepository;
 import com.tradesync.persistence.repository.TradeRepository;
+import com.tradesync.reconciliation.ReconciliationStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -17,6 +19,7 @@ import java.nio.charset.StandardCharsets;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -149,6 +152,81 @@ class ReconciliationControllerIntegrationTest {
     }
 
     @Test
+    void resolvesExceptionResult() throws Exception {
+        Long runId = createPriceMismatchRun();
+        Long resultId = resultId(runId, ReconciliationStatus.PRICE_MISMATCH);
+
+        mockMvc.perform(patch("/api/exceptions/{resultId}/resolve", resultId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "resolutionStatus": "RESOLVED",
+                                  "note": "Confirmed external price is correct."
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.resolutionId").isNumber())
+                .andExpect(jsonPath("$.resultId").value(resultId))
+                .andExpect(jsonPath("$.resolutionStatus").value("RESOLVED"))
+                .andExpect(jsonPath("$.note").value("Confirmed external price is correct."))
+                .andExpect(jsonPath("$.resolvedAt").exists());
+
+        assertThat(resolutionRepository.count()).isEqualTo(1);
+    }
+
+    @Test
+    void rejectsMatchedResultResolution() throws Exception {
+        Long runId = createPriceMismatchRun();
+        Long resultId = resultId(runId, ReconciliationStatus.MATCHED);
+
+        mockMvc.perform(patch("/api/exceptions/{resultId}/resolve", resultId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "resolutionStatus": "RESOLVED",
+                                  "note": "No action needed."
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Matched reconciliation results cannot be resolved."));
+
+        assertThat(resolutionRepository.count()).isZero();
+    }
+
+    @Test
+    void rejectsOpenResolutionStatus() throws Exception {
+        Long runId = createPriceMismatchRun();
+        Long resultId = resultId(runId, ReconciliationStatus.PRICE_MISMATCH);
+
+        mockMvc.perform(patch("/api/exceptions/{resultId}/resolve", resultId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "resolutionStatus": "OPEN",
+                                  "note": "Still under review."
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Resolution status must be RESOLVED or IGNORED."));
+
+        assertThat(resolutionRepository.count()).isZero();
+    }
+
+    @Test
+    void returnsNotFoundForUnknownReconciliationResult() throws Exception {
+        mockMvc.perform(patch("/api/exceptions/{resultId}/resolve", 999L)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "resolutionStatus": "RESOLVED",
+                                  "note": "Reviewed."
+                                }
+                                """))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.message").value("Reconciliation result not found: 999"));
+    }
+
+    @Test
     void returnsBadRequestAndDoesNotPersistWhenCsvIsInvalid() throws Exception {
         MockMultipartFile internalFile = csv("internalFile", """
                 trade_id,symbol,quantity,price,currency,trade_date
@@ -211,6 +289,10 @@ class ReconciliationControllerIntegrationTest {
                 .andExpect(status().isCreated());
 
         return runRepository.findAll().get(0).getId();
+    }
+
+    private Long resultId(Long runId, ReconciliationStatus status) {
+        return resultRepository.findByRunIdAndStatusOrderById(runId, status).get(0).getId();
     }
 
     private MockMultipartFile csv(String partName, String content) {
