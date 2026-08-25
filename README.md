@@ -15,6 +15,8 @@ TradeSync provides a structured workflow for ingesting trade files, validating
 records, running reconciliation rules, reviewing exceptions, and recording
 resolution notes.
 
+Database schema changes are managed with Flyway migrations.
+
 ## Features
 
 - CSV trade ingestion
@@ -98,6 +100,7 @@ Available API endpoints:
 - Spring Boot
 - Spring Web
 - Spring Data JPA
+- Flyway
 - PostgreSQL
 - Maven
 - JUnit
@@ -126,6 +129,8 @@ The health endpoint is available at:
 ```text
 http://localhost:8080/actuator/health
 ```
+
+Flyway applies database migrations when the backend starts.
 
 ## Testing
 
