@@ -7,6 +7,12 @@ target/
 # Maven wrapper
 .mvn/wrapper/maven-wrapper.jar
 
+# JavaScript
+node_modules/
+dist/
+.vite/
+*.tsbuildinfo
+
 # IDEs
 .idea/
 .vscode/

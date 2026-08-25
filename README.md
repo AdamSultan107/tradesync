@@ -155,6 +155,7 @@ API errors use a consistent response body:
 - React
 - TypeScript
 - Vite
+- Tailwind CSS
 - Docker Compose
 
 ## Running Locally
@@ -179,6 +180,23 @@ http://localhost:8080/actuator/health
 ```
 
 Flyway applies database migrations when the backend starts.
+
+Run the frontend:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+The frontend is available at:
+
+```text
+http://localhost:5173
+```
+
+During local development, the Vite server proxies `/api` requests to the backend
+at `http://localhost:8080`.
 
 ## Testing
 
