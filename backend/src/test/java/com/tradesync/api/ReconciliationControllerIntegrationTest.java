@@ -148,7 +148,8 @@ class ReconciliationControllerIntegrationTest {
     void returnsNotFoundForUnknownReconciliationRun() throws Exception {
         mockMvc.perform(get("/api/reconciliations/{runId}", 999L))
                 .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.message").value("Reconciliation run not found: 999"));
+                .andExpect(jsonPath("$.message").value("Reconciliation run not found: 999"))
+                .andExpect(jsonPath("$.errors", org.hamcrest.Matchers.empty()));
     }
 
     @Test
@@ -188,7 +189,8 @@ class ReconciliationControllerIntegrationTest {
                                 }
                                 """))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message").value("Matched reconciliation results cannot be resolved."));
+                .andExpect(jsonPath("$.message").value("Matched reconciliation results cannot be resolved."))
+                .andExpect(jsonPath("$.errors", org.hamcrest.Matchers.empty()));
 
         assertThat(resolutionRepository.count()).isZero();
     }
@@ -207,7 +209,8 @@ class ReconciliationControllerIntegrationTest {
                                 }
                                 """))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message").value("Resolution status must be RESOLVED or IGNORED."));
+                .andExpect(jsonPath("$.message").value("Resolution status must be RESOLVED or IGNORED."))
+                .andExpect(jsonPath("$.errors", org.hamcrest.Matchers.empty()));
 
         assertThat(resolutionRepository.count()).isZero();
     }
@@ -223,7 +226,8 @@ class ReconciliationControllerIntegrationTest {
                                 }
                                 """))
                 .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.message").value("Reconciliation result not found: 999"));
+                .andExpect(jsonPath("$.message").value("Reconciliation result not found: 999"))
+                .andExpect(jsonPath("$.errors", org.hamcrest.Matchers.empty()));
     }
 
     @Test
@@ -242,14 +246,81 @@ class ReconciliationControllerIntegrationTest {
                         .file(externalFile))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value("CSV validation failed."))
-                .andExpect(jsonPath("$.errors[0].source").value("INTERNAL"))
-                .andExpect(jsonPath("$.errors[0].lineNumber").value(2))
                 .andExpect(jsonPath("$.errors[0].field").value("quantity"))
-                .andExpect(jsonPath("$.errors[0].message").value("Value must be positive."));
+                .andExpect(jsonPath("$.errors[0].message").value("Value must be positive."))
+                .andExpect(jsonPath("$.errors[0].source").value("INTERNAL"))
+                .andExpect(jsonPath("$.errors[0].lineNumber").value(2));
 
         assertThat(runRepository.count()).isZero();
         assertThat(tradeRepository.count()).isZero();
         assertThat(resultRepository.count()).isZero();
+    }
+
+    @Test
+    void returnsStandardErrorWhenMultipartFileIsMissing() throws Exception {
+        MockMultipartFile internalFile = csv("internalFile", """
+                trade_id,symbol,quantity,price,currency,trade_date
+                T001,AAPL,100,225.40,USD,2026-08-18
+                """);
+
+        mockMvc.perform(multipart("/api/reconciliations")
+                        .file(internalFile))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Request validation failed."))
+                .andExpect(jsonPath("$.errors[0].field").value("externalFile"))
+                .andExpect(jsonPath("$.errors[0].message").value("File part is required."));
+    }
+
+    @Test
+    void returnsStandardErrorWhenRequestBodyValidationFails() throws Exception {
+        Long runId = createPriceMismatchRun();
+        Long resultId = resultId(runId, ReconciliationStatus.PRICE_MISMATCH);
+
+        mockMvc.perform(patch("/api/exceptions/{resultId}/resolve", resultId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "resolutionStatus": "RESOLVED",
+                                  "note": ""
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Request validation failed."))
+                .andExpect(jsonPath("$.errors[0].field").value("note"))
+                .andExpect(jsonPath("$.errors[0].message").value("must not be blank"));
+
+        assertThat(resolutionRepository.count()).isZero();
+    }
+
+    @Test
+    void returnsStandardErrorWhenJsonIsMalformed() throws Exception {
+        mockMvc.perform(patch("/api/exceptions/{resultId}/resolve", 999L)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Malformed JSON request."))
+                .andExpect(jsonPath("$.errors[0].field").value("body"))
+                .andExpect(jsonPath("$.errors[0].message").value("Request body must be valid JSON."));
+    }
+
+    @Test
+    void returnsStandardErrorWhenMethodIsUnsupported() throws Exception {
+        mockMvc.perform(get("/api/exceptions/{resultId}/resolve", 999L))
+                .andExpect(status().isMethodNotAllowed())
+                .andExpect(jsonPath("$.message").value("HTTP method is not supported."))
+                .andExpect(jsonPath("$.errors[0].field").value("method"))
+                .andExpect(jsonPath("$.errors[0].message").value("HTTP method is not supported for this endpoint."));
+    }
+
+    @Test
+    void returnsStandardErrorWhenContentTypeIsUnsupported() throws Exception {
+        mockMvc.perform(patch("/api/exceptions/{resultId}/resolve", 999L)
+                        .contentType(MediaType.TEXT_PLAIN)
+                        .content("resolutionStatus=RESOLVED"))
+                .andExpect(status().isUnsupportedMediaType())
+                .andExpect(jsonPath("$.message").value("Content type is not supported."))
+                .andExpect(jsonPath("$.errors[0].field").value("contentType"))
+                .andExpect(jsonPath("$.errors[0].message").value("Content type is not supported for this endpoint."));
     }
 
     private Long createPriceMismatchRun() throws Exception {

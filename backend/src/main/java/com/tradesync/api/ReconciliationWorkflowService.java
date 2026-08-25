@@ -1,7 +1,7 @@
 package com.tradesync.api;
 
 import com.tradesync.api.dto.CreateReconciliationResponse;
-import com.tradesync.api.dto.CsvValidationErrorResponse;
+import com.tradesync.api.dto.ApiErrorDetailResponse;
 import com.tradesync.csv.CsvTradeParseResult;
 import com.tradesync.csv.CsvTradeParser;
 import com.tradesync.csv.CsvTradeValidationError;
@@ -80,7 +80,7 @@ public class ReconciliationWorkflowService {
             CsvTradeParseResult internalParse,
             CsvTradeParseResult externalParse
     ) {
-        List<CsvValidationErrorResponse> errors = new ArrayList<>();
+        List<ApiErrorDetailResponse> errors = new ArrayList<>();
         errors.addAll(toResponses(TradeSource.INTERNAL, internalParse.errors()));
         errors.addAll(toResponses(TradeSource.EXTERNAL, externalParse.errors()));
 
@@ -89,12 +89,12 @@ public class ReconciliationWorkflowService {
         }
     }
 
-    private List<CsvValidationErrorResponse> toResponses(
+    private List<ApiErrorDetailResponse> toResponses(
             TradeSource source,
             List<CsvTradeValidationError> errors
     ) {
         return errors.stream()
-                .map(error -> CsvValidationErrorResponse.from(source, error))
+                .map(error -> ApiErrorDetailResponse.from(source, error))
                 .toList();
     }
 }

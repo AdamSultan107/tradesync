@@ -94,6 +94,54 @@ Available API endpoints:
 - `PATCH /api/exceptions/{id}/resolve` - resolve an exception with a note
 - `GET /actuator/health` - service health check
 
+Upload two trade files:
+
+```bash
+curl -X POST http://localhost:8080/api/reconciliations \
+  -F "internalFile=@sample-data/valid-trades.csv" \
+  -F "externalFile=@sample-data/duplicate-trades.csv"
+```
+
+Get a reconciliation run:
+
+```bash
+curl http://localhost:8080/api/reconciliations/RUN_ID
+```
+
+List reconciliation results:
+
+```bash
+curl http://localhost:8080/api/reconciliations/RUN_ID/results
+```
+
+List exception results:
+
+```bash
+curl http://localhost:8080/api/reconciliations/RUN_ID/exceptions
+```
+
+Resolve an exception:
+
+```bash
+curl -X PATCH http://localhost:8080/api/exceptions/RESULT_ID/resolve \
+  -H "Content-Type: application/json" \
+  -d '{"resolutionStatus":"RESOLVED","note":"Reviewed and resolved."}'
+```
+
+API errors use a consistent response body:
+
+```json
+{
+  "message": "Request validation failed.",
+  "errors": [
+    {
+      "field": "note",
+      "message": "must not be blank"
+    }
+  ]
+}
+```
+
 ## Technology
 
 - Java

@@ -1,14 +1,10 @@
 package com.tradesync.api;
 
 import com.tradesync.api.dto.CreateReconciliationResponse;
-import com.tradesync.api.dto.CsvValidationErrorListResponse;
-import com.tradesync.api.dto.ErrorResponse;
 import com.tradesync.api.dto.ReconciliationRunResponse;
 import com.tradesync.api.dto.StoredReconciliationResultResponse;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -59,21 +55,5 @@ public class ReconciliationController {
     @GetMapping(path = "/{runId}/exceptions", produces = MediaType.APPLICATION_JSON_VALUE)
     public List<StoredReconciliationResultResponse> getExceptions(@PathVariable Long runId) {
         return queryService.getExceptions(runId);
-    }
-
-    @ExceptionHandler(CsvValidationException.class)
-    public ResponseEntity<CsvValidationErrorListResponse> handleCsvValidationException(
-            CsvValidationException exception
-    ) {
-        return ResponseEntity.badRequest().body(
-                new CsvValidationErrorListResponse(exception.getMessage(), exception.errors())
-        );
-    }
-
-    @ExceptionHandler(ReconciliationNotFoundException.class)
-    public ResponseEntity<ErrorResponse> handleReconciliationNotFoundException(
-            ReconciliationNotFoundException exception
-    ) {
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ErrorResponse(exception.getMessage()));
     }
 }
