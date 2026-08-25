@@ -45,14 +45,15 @@ export type CreateReconciliationResponse = ReconciliationRun & {
 };
 
 export type ExceptionResolutionResponse = {
+  resolutionId: number;
   resultId: number;
   resolutionStatus: Extract<ResolutionStatus, 'RESOLVED' | 'IGNORED'>;
-  resolutionNote: string;
+  note: string;
   resolvedAt: string;
 };
 
 export type ApiErrorDetail = {
-  field: string;
+  field?: string;
   message: string;
   source?: 'INTERNAL' | 'EXTERNAL';
   lineNumber?: number;
