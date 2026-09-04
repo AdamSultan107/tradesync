@@ -12,10 +12,11 @@ import {
   RotateCcw,
   type LucideIcon,
 } from 'lucide-react';
-import { type FormEvent, useMemo, useState } from 'react';
+import { type FormEvent, useEffect, useMemo, useState } from 'react';
 
 import {
   createReconciliation,
+  getRecentReconciliationRuns,
   getReconciliationExceptions,
   getReconciliationResults,
   getReconciliationRun,
@@ -30,7 +31,7 @@ import {
 } from './lib/api';
 
 type ViewKey = 'upload' | 'results' | 'exceptions';
-type LoadState = 'idle' | 'submitting' | 'refreshing';
+type LoadState = 'idle' | 'submitting' | 'refreshing' | 'loadingRun';
 type ResolutionAction = Extract<ResolutionStatus, 'RESOLVED' | 'IGNORED'>;
 
 const navItems: Array<{ key: ViewKey; label: string; icon: LucideIcon }> = [
@@ -38,6 +39,8 @@ const navItems: Array<{ key: ViewKey; label: string; icon: LucideIcon }> = [
   { key: 'results', label: 'Results', icon: FileSearch },
   { key: 'exceptions', label: 'Exceptions', icon: ClipboardCheck },
 ];
+
+const DEFAULT_RESOLUTION_NOTE = 'Reviewed against source records.';
 
 const statusTone: Record<ReconciliationStatus, string> = {
   MATCHED: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200',
@@ -53,15 +56,18 @@ function App() {
   const [activeView, setActiveView] = useState<ViewKey>('upload');
   const [internalFile, setInternalFile] = useState<File | null>(null);
   const [externalFile, setExternalFile] = useState<File | null>(null);
+  const [recentRuns, setRecentRuns] = useState<ReconciliationRun[]>([]);
   const [run, setRun] = useState<ReconciliationRun | null>(null);
   const [results, setResults] = useState<ReconciliationResult[]>([]);
   const [exceptions, setExceptions] = useState<ReconciliationResult[]>([]);
   const [selectedExceptionId, setSelectedExceptionId] = useState<number | null>(null);
   const [resolutionStatus, setResolutionStatus] = useState<ResolutionAction>('RESOLVED');
-  const [resolutionNote, setResolutionNote] = useState('Reviewed against source records.');
+  const [resolutionNote, setResolutionNote] = useState(DEFAULT_RESOLUTION_NOTE);
   const [loadState, setLoadState] = useState<LoadState>('idle');
   const [resolvingResultId, setResolvingResultId] = useState<number | null>(null);
   const [apiError, setApiError] = useState<ApiError | null>(null);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  const [historyLoading, setHistoryLoading] = useState(true);
   const [notice, setNotice] = useState<string | null>(null);
 
   const isBusy = loadState !== 'idle';
@@ -73,6 +79,23 @@ function App() {
     [exceptions, selectedExceptionId],
   );
 
+  useEffect(() => {
+    void loadRecentRuns();
+  }, []);
+
+  async function loadRecentRuns() {
+    setHistoryLoading(true);
+
+    try {
+      setRecentRuns(await getRecentReconciliationRuns());
+      setHistoryError(null);
+    } catch (error) {
+      setHistoryError(toDisplayError(error).message);
+    } finally {
+      setHistoryLoading(false);
+    }
+  }
+
   async function loadRunData(runId: number) {
     const [nextRun, nextResults, nextExceptions] = await Promise.all([
       getReconciliationRun(runId),
@@ -83,17 +106,19 @@ function App() {
     setRun(nextRun);
     setResults(nextResults);
     setExceptions(nextExceptions);
-    setSelectedExceptionId((currentId) => {
-      const currentStillExists = nextExceptions.some(
-        (result) => result.resultId === currentId,
-      );
+    syncSelectedException(nextExceptions);
+  }
 
-      if (currentId !== null && currentStillExists) {
-        return currentId;
-      }
+  function syncSelectedException(nextExceptions: ReconciliationResult[]) {
+    const nextSelected =
+      nextExceptions.find((result) => result.resultId === selectedExceptionId) ??
+      nextExceptions.find((result) => result.resultId !== undefined) ??
+      nextExceptions[0] ??
+      null;
 
-      return nextExceptions.find((result) => result.resultId !== undefined)?.resultId ?? null;
-    });
+    setSelectedExceptionId(nextSelected?.resultId ?? null);
+    setResolutionStatus(nextSelected?.latestResolution?.resolutionStatus ?? 'RESOLVED');
+    setResolutionNote(nextSelected?.latestResolution?.note ?? DEFAULT_RESOLUTION_NOTE);
   }
 
   function handleSelectException(resultId: number | null) {
@@ -101,9 +126,29 @@ function App() {
 
     setSelectedExceptionId(resultId);
     setResolutionStatus(result?.latestResolution?.resolutionStatus ?? 'RESOLVED');
-    setResolutionNote(result?.latestResolution?.note ?? 'Reviewed against source records.');
+    setResolutionNote(result?.latestResolution?.note ?? DEFAULT_RESOLUTION_NOTE);
     setApiError(null);
     setNotice(null);
+  }
+
+  async function handleLoadRun(runId: number) {
+    if (isBusy || run?.runId === runId) {
+      return;
+    }
+
+    setLoadState('loadingRun');
+    setApiError(null);
+    setNotice(null);
+
+    try {
+      await loadRunData(runId);
+      setNotice(`Run ${runId} loaded.`);
+      setActiveView('results');
+    } catch (error) {
+      setApiError(toDisplayError(error));
+    } finally {
+      setLoadState('idle');
+    }
   }
 
   async function handleCreateReconciliation(event: FormEvent<HTMLFormElement>) {
@@ -120,6 +165,7 @@ function App() {
     try {
       const createdRun = await createReconciliation(internalFile, externalFile);
       await loadRunData(createdRun.runId);
+      await loadRecentRuns();
       setNotice(`Run ${createdRun.runId} completed.`);
       setActiveView('results');
     } catch (error) {
@@ -141,6 +187,7 @@ function App() {
 
     try {
       await loadRunData(run.runId);
+      await loadRecentRuns();
       setNotice(`Run ${run.runId} refreshed.`);
     } catch (error) {
       setApiError(toDisplayError(error));
@@ -265,6 +312,15 @@ function App() {
               );
             })}
           </nav>
+
+          <RunHistory
+            runs={recentRuns}
+            activeRunId={run?.runId ?? null}
+            isBusy={isBusy}
+            isLoading={historyLoading || loadState === 'loadingRun'}
+            error={historyError}
+            onSelectRun={handleLoadRun}
+          />
         </aside>
 
         <main className="flex-1 px-4 py-5 sm:px-6 lg:px-8">
@@ -332,6 +388,73 @@ function App() {
         </main>
       </div>
     </div>
+  );
+}
+
+function RunHistory({
+  runs,
+  activeRunId,
+  isBusy,
+  isLoading,
+  error,
+  onSelectRun,
+}: {
+  runs: ReconciliationRun[];
+  activeRunId: number | null;
+  isBusy: boolean;
+  isLoading: boolean;
+  error: string | null;
+  onSelectRun: (runId: number) => void;
+}) {
+  return (
+    <section className="mt-6 border-t border-neutral-200 pt-5">
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="text-xs font-semibold uppercase text-neutral-500">Recent runs</h2>
+        {isLoading ? (
+          <Loader2 aria-hidden="true" className="animate-spin text-neutral-400" size={15} />
+        ) : null}
+      </div>
+
+      {error ? <p className="mt-3 text-xs text-rose-700">{error}</p> : null}
+
+      <div className="mt-3 space-y-2">
+        {runs.length === 0 && !isLoading ? (
+          <p className="rounded-lg border border-dashed border-neutral-200 px-3 py-3 text-xs text-neutral-500">
+            No runs
+          </p>
+        ) : null}
+
+        {runs.map((historyRun) => {
+          const isActive = historyRun.runId === activeRunId;
+
+          return (
+            <button
+              key={historyRun.runId}
+              type="button"
+              disabled={isBusy || isActive}
+              onClick={() => onSelectRun(historyRun.runId)}
+              className={`block w-full rounded-lg border px-3 py-3 text-left transition ${
+                isActive
+                  ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
+                  : 'border-neutral-200 bg-white text-neutral-700 hover:border-neutral-300 hover:bg-neutral-50'
+              } disabled:cursor-default`}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-sm font-semibold">Run {historyRun.runId}</span>
+                <span className="text-xs font-medium">{formatStatus(historyRun.status)}</span>
+              </div>
+              <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-neutral-500">
+                <span>{historyRun.exceptionCount} exceptions</span>
+                <span>{historyRun.matchedCount} matched</span>
+              </div>
+              <div className="mt-1 text-xs text-neutral-500">
+                {formatDateTime(historyRun.startedAt)}
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 

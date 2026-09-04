@@ -26,6 +26,7 @@ Database schema changes are managed with Flyway migrations.
 - Price, quantity, and currency discrepancy detection
 - Duplicate trade detection
 - Reconciliation run summaries
+- Recent reconciliation run history
 - Exception review and resolution workflow
 - Resolution notes for auditability
 - Health endpoint for service monitoring
@@ -88,6 +89,7 @@ Sample CSV files are available under `sample-data/`:
 Available API endpoints:
 
 - `POST /api/reconciliations` - upload internal and external trade files
+- `GET /api/reconciliations` - list recent reconciliation runs
 - `GET /api/reconciliations/{id}` - get a reconciliation run summary
 - `GET /api/reconciliations/{id}/results` - list reconciliation results
 - `GET /api/reconciliations/{id}/exceptions` - list exception results
@@ -100,6 +102,12 @@ Upload two trade files:
 curl -X POST http://localhost:8080/api/reconciliations \
   -F "internalFile=@sample-data/valid-trades.csv" \
   -F "externalFile=@sample-data/duplicate-trades.csv"
+```
+
+List recent reconciliation runs:
+
+```bash
+curl http://localhost:8080/api/reconciliations
 ```
 
 Get a reconciliation run:

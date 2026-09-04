@@ -85,6 +85,10 @@ export function getReconciliationRun(runId: number): Promise<ReconciliationRun> 
   return request<ReconciliationRun>(`/api/reconciliations/${runId}`);
 }
 
+export function getRecentReconciliationRuns(): Promise<ReconciliationRun[]> {
+  return request<ReconciliationRun[]>('/api/reconciliations');
+}
+
 export function getReconciliationResults(runId: number): Promise<ReconciliationResult[]> {
   return request<ReconciliationResult[]>(`/api/reconciliations/${runId}/results`);
 }
