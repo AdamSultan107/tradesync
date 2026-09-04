@@ -2,9 +2,11 @@ package com.tradesync.api;
 
 import com.tradesync.api.dto.ReconciliationRunResponse;
 import com.tradesync.api.dto.StoredReconciliationResultResponse;
+import com.tradesync.persistence.entity.ExceptionResolutionEntity;
 import com.tradesync.persistence.entity.ReconciliationResultEntity;
 import com.tradesync.persistence.entity.ReconciliationRunEntity;
 import com.tradesync.persistence.entity.TradeEntity;
+import com.tradesync.persistence.repository.ExceptionResolutionRepository;
 import com.tradesync.persistence.repository.ReconciliationResultRepository;
 import com.tradesync.persistence.repository.ReconciliationRunRepository;
 import com.tradesync.persistence.repository.TradeRepository;
@@ -13,6 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -27,15 +30,18 @@ public class ReconciliationQueryService {
     private final ReconciliationRunRepository runRepository;
     private final ReconciliationResultRepository resultRepository;
     private final TradeRepository tradeRepository;
+    private final ExceptionResolutionRepository resolutionRepository;
 
     public ReconciliationQueryService(
             ReconciliationRunRepository runRepository,
             ReconciliationResultRepository resultRepository,
-            TradeRepository tradeRepository
+            TradeRepository tradeRepository,
+            ExceptionResolutionRepository resolutionRepository
     ) {
         this.runRepository = runRepository;
         this.resultRepository = resultRepository;
         this.tradeRepository = tradeRepository;
+        this.resolutionRepository = resolutionRepository;
     }
 
     @Transactional(readOnly = true)
@@ -71,12 +77,34 @@ public class ReconciliationQueryService {
     ) {
         Map<String, List<TradeEntity>> tradesByTradeId = tradeRepository.findByRunIdOrderById(runId).stream()
                 .collect(Collectors.groupingBy(TradeEntity::getTradeId));
+        Map<Long, ExceptionResolutionEntity> latestResolutionByResultId = latestResolutionByResultId(results);
 
         return results.stream()
                 .map(result -> StoredReconciliationResultResponse.from(
                         result,
-                        tradesByTradeId.getOrDefault(result.getTradeId(), List.of())
+                        tradesByTradeId.getOrDefault(result.getTradeId(), List.of()),
+                        latestResolutionByResultId.get(result.getId())
                 ))
                 .toList();
+    }
+
+    private Map<Long, ExceptionResolutionEntity> latestResolutionByResultId(
+            List<ReconciliationResultEntity> results
+    ) {
+        if (results.isEmpty()) {
+            return Map.of();
+        }
+
+        List<Long> resultIds = results.stream()
+                .map(ReconciliationResultEntity::getId)
+                .toList();
+        Map<Long, ExceptionResolutionEntity> latestResolutionByResultId = new HashMap<>();
+
+        for (ExceptionResolutionEntity resolution
+                : resolutionRepository.findByResultIdInOrderByResolvedAtDescIdDesc(resultIds)) {
+            latestResolutionByResultId.putIfAbsent(resolution.getResult().getId(), resolution);
+        }
+
+        return latestResolutionByResultId;
     }
 }

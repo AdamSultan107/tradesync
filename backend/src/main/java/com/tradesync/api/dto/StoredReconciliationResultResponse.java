@@ -1,5 +1,6 @@
 package com.tradesync.api.dto;
 
+import com.tradesync.persistence.entity.ExceptionResolutionEntity;
 import com.tradesync.persistence.entity.ReconciliationResultEntity;
 import com.tradesync.persistence.entity.TradeEntity;
 import com.tradesync.reconciliation.ReconciliationStatus;
@@ -15,7 +16,8 @@ public record StoredReconciliationResultResponse(
         String description,
         Instant createdAt,
         List<TradeResponse> internalTrades,
-        List<TradeResponse> externalTrades
+        List<TradeResponse> externalTrades,
+        ExceptionResolutionResponse latestResolution
 ) {
 
     public StoredReconciliationResultResponse {
@@ -25,7 +27,8 @@ public record StoredReconciliationResultResponse(
 
     public static StoredReconciliationResultResponse from(
             ReconciliationResultEntity result,
-            List<TradeEntity> trades
+            List<TradeEntity> trades,
+            ExceptionResolutionEntity latestResolution
     ) {
         return new StoredReconciliationResultResponse(
                 result.getId(),
@@ -40,7 +43,8 @@ public record StoredReconciliationResultResponse(
                 trades.stream()
                         .filter(trade -> trade.getSource() == TradeSource.EXTERNAL)
                         .map(TradeResponse::from)
-                        .toList()
+                        .toList(),
+                latestResolution == null ? null : ExceptionResolutionResponse.from(latestResolution)
         );
     }
 }

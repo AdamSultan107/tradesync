@@ -27,6 +27,7 @@ export type ReconciliationResult = {
   createdAt?: string;
   internalTrades: Trade[];
   externalTrades: Trade[];
+  latestResolution?: ExceptionResolutionResponse | null;
 };
 
 export type ReconciliationRun = {

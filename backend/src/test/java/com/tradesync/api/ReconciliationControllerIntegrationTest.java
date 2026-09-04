@@ -132,6 +132,41 @@ class ReconciliationControllerIntegrationTest {
     }
 
     @Test
+    void getsReconciliationResultsWithLatestResolution() throws Exception {
+        Long runId = createPriceMismatchRun();
+        Long resultId = resultId(runId, ReconciliationStatus.PRICE_MISMATCH);
+
+        resolveResult(resultId, "RESOLVED", "Confirmed external price is correct.");
+        resolveResult(resultId, "IGNORED", "Duplicate review note superseded.");
+
+        mockMvc.perform(get("/api/reconciliations/{runId}/results", runId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", org.hamcrest.Matchers.hasSize(2)))
+                .andExpect(jsonPath("$[1].tradeId").value("T002"))
+                .andExpect(jsonPath("$[1].latestResolution.resolutionId").isNumber())
+                .andExpect(jsonPath("$[1].latestResolution.resultId").value(resultId))
+                .andExpect(jsonPath("$[1].latestResolution.resolutionStatus").value("IGNORED"))
+                .andExpect(jsonPath("$[1].latestResolution.note").value("Duplicate review note superseded."))
+                .andExpect(jsonPath("$[1].latestResolution.resolvedAt").exists());
+    }
+
+    @Test
+    void getsExceptionResultsWithLatestResolution() throws Exception {
+        Long runId = createPriceMismatchRun();
+        Long resultId = resultId(runId, ReconciliationStatus.PRICE_MISMATCH);
+
+        resolveResult(resultId, "RESOLVED", "Confirmed external price is correct.");
+
+        mockMvc.perform(get("/api/reconciliations/{runId}/exceptions", runId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", org.hamcrest.Matchers.hasSize(1)))
+                .andExpect(jsonPath("$[0].tradeId").value("T002"))
+                .andExpect(jsonPath("$[0].latestResolution.resultId").value(resultId))
+                .andExpect(jsonPath("$[0].latestResolution.resolutionStatus").value("RESOLVED"))
+                .andExpect(jsonPath("$[0].latestResolution.note").value("Confirmed external price is correct."));
+    }
+
+    @Test
     void includesDuplicateTradeRowsForReview() throws Exception {
         Long runId = createDuplicateRun();
 
@@ -364,6 +399,18 @@ class ReconciliationControllerIntegrationTest {
 
     private Long resultId(Long runId, ReconciliationStatus status) {
         return resultRepository.findByRunIdAndStatusOrderById(runId, status).get(0).getId();
+    }
+
+    private void resolveResult(Long resultId, String resolutionStatus, String note) throws Exception {
+        mockMvc.perform(patch("/api/exceptions/{resultId}/resolve", resultId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "resolutionStatus": "%s",
+                                  "note": "%s"
+                                }
+                                """.formatted(resolutionStatus, note)))
+                .andExpect(status().isOk());
     }
 
     private MockMultipartFile csv(String partName, String content) {

@@ -59,7 +59,6 @@ function App() {
   const [selectedExceptionId, setSelectedExceptionId] = useState<number | null>(null);
   const [resolutionStatus, setResolutionStatus] = useState<ResolutionAction>('RESOLVED');
   const [resolutionNote, setResolutionNote] = useState('Reviewed against source records.');
-  const [resolvedResultIds, setResolvedResultIds] = useState<Set<number>>(() => new Set());
   const [loadState, setLoadState] = useState<LoadState>('idle');
   const [resolvingResultId, setResolvingResultId] = useState<number | null>(null);
   const [apiError, setApiError] = useState<ApiError | null>(null);
@@ -95,6 +94,16 @@ function App() {
 
       return nextExceptions.find((result) => result.resultId !== undefined)?.resultId ?? null;
     });
+  }
+
+  function handleSelectException(resultId: number | null) {
+    const result = exceptions.find((exception) => exception.resultId === resultId);
+
+    setSelectedExceptionId(resultId);
+    setResolutionStatus(result?.latestResolution?.resolutionStatus ?? 'RESOLVED');
+    setResolutionNote(result?.latestResolution?.note ?? 'Reviewed against source records.');
+    setApiError(null);
+    setNotice(null);
   }
 
   async function handleCreateReconciliation(event: FormEvent<HTMLFormElement>) {
@@ -165,7 +174,6 @@ function App() {
         resolutionStatus,
         resolutionNote.trim(),
       );
-      setResolvedResultIds((current) => new Set(current).add(selectedException.resultId!));
       setNotice(`${formatTradeId(selectedException)} marked ${formatStatus(resolutionStatus)}.`);
 
       if (run) {
@@ -196,10 +204,9 @@ function App() {
         resolutionStatus={resolutionStatus}
         resolutionNote={resolutionNote}
         resolvingResultId={resolvingResultId}
-        resolvedResultIds={resolvedResultIds}
         error={apiError}
         notice={notice}
-        onSelectException={setSelectedExceptionId}
+        onSelectException={handleSelectException}
         onResolutionStatus={setResolutionStatus}
         onResolutionNote={setResolutionNote}
         onResolve={handleResolveException}
@@ -475,6 +482,7 @@ function ResultsView({
               <tr>
                 <th className="px-4 py-3 font-semibold">Trade ID</th>
                 <th className="px-4 py-3 font-semibold">Status</th>
+                <th className="px-4 py-3 font-semibold">Resolution</th>
                 <th className="px-4 py-3 font-semibold">Description</th>
                 <th className="px-4 py-3 font-semibold">Internal</th>
                 <th className="px-4 py-3 font-semibold">External</th>
@@ -488,6 +496,9 @@ function ResultsView({
                   </td>
                   <td className="px-4 py-3">
                     <StatusBadge status={result.status} />
+                  </td>
+                  <td className="px-4 py-3">
+                    <ResolutionSummary result={result} />
                   </td>
                   <td className="max-w-xs px-4 py-3 text-neutral-700">
                     {result.description}
@@ -516,7 +527,6 @@ function ExceptionsView({
   resolutionStatus,
   resolutionNote,
   resolvingResultId,
-  resolvedResultIds,
   error,
   notice,
   onSelectException,
@@ -531,7 +541,6 @@ function ExceptionsView({
   resolutionStatus: ResolutionAction;
   resolutionNote: string;
   resolvingResultId: number | null;
-  resolvedResultIds: Set<number>;
   error: ApiError | null;
   notice: string | null;
   onSelectException: (resultId: number | null) => void;
@@ -563,9 +572,7 @@ function ExceptionsView({
     );
   }
 
-  const selectedResolved =
-    selectedException?.resultId !== undefined &&
-    resolvedResultIds.has(selectedException.resultId);
+  const selectedResolution = selectedException?.latestResolution ?? null;
   const canResolve =
     selectedException?.resultId !== undefined &&
     resolvingResultId === null &&
@@ -585,7 +592,6 @@ function ExceptionsView({
               resultId !== null
                 ? resultId === selectedExceptionId
                 : result === selectedException;
-            const wasResolved = resultId !== null && resolvedResultIds.has(resultId);
 
             return (
               <button
@@ -603,11 +609,7 @@ function ExceptionsView({
                     </span>
                     <StatusBadge status={result.status} />
                   </div>
-                  {wasResolved ? (
-                    <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700">
-                      Saved
-                    </span>
-                  ) : null}
+                  <ResolutionSummary result={result} compact />
                 </div>
                 <p className="mt-2 text-sm text-neutral-600">{result.description}</p>
                 <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-neutral-500">
@@ -632,10 +634,19 @@ function ExceptionsView({
                 <StatusBadge status={selectedException.status} />
               </div>
               <p className="mt-2 text-sm text-neutral-600">{selectedException.description}</p>
-              {selectedResolved ? (
-                <p className="mt-2 text-xs font-medium text-emerald-700">
-                  Resolution saved in this session.
-                </p>
+              {selectedResolution ? (
+                <div className="mt-3 rounded-md border border-emerald-200 bg-white p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-xs font-semibold uppercase text-neutral-500">
+                      Latest resolution
+                    </span>
+                    <ResolutionSummary result={selectedException} compact />
+                  </div>
+                  <p className="mt-2 text-sm text-neutral-700">{selectedResolution.note}</p>
+                  <p className="mt-1 text-xs text-neutral-500">
+                    {formatDateTime(selectedResolution.resolvedAt)}
+                  </p>
+                </div>
               ) : null}
             </div>
 
@@ -731,6 +742,38 @@ function StatusBadge({ status }: { status: ReconciliationStatus }) {
         <AlertTriangle aria-hidden="true" size={14} />
       )}
       {formatStatus(status)}
+    </span>
+  );
+}
+
+function ResolutionSummary({
+  result,
+  compact = false,
+}: {
+  result: ReconciliationResult;
+  compact?: boolean;
+}) {
+  const resolution = result.latestResolution;
+
+  if (!resolution && result.status === 'MATCHED') {
+    return <span className="text-sm text-neutral-400">--</span>;
+  }
+
+  const label = resolution ? resolution.resolutionStatus : 'OPEN';
+  const tone =
+    label === 'RESOLVED'
+      ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200'
+      : label === 'IGNORED'
+        ? 'bg-neutral-100 text-neutral-700 ring-1 ring-neutral-200'
+        : 'bg-amber-50 text-amber-800 ring-1 ring-amber-200';
+
+  return (
+    <span
+      className={`inline-flex items-center rounded-full font-semibold ${tone} ${
+        compact ? 'px-2 py-1 text-xs' : 'min-h-7 px-2.5 py-1 text-xs'
+      }`}
+    >
+      {formatStatus(label)}
     </span>
   );
 }
