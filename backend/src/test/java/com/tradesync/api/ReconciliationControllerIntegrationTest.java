@@ -100,6 +100,21 @@ class ReconciliationControllerIntegrationTest {
     }
 
     @Test
+    void getsRecentReconciliationRuns() throws Exception {
+        Long firstRunId = createPriceMismatchRun();
+        Long secondRunId = createDuplicateRun();
+
+        mockMvc.perform(get("/api/reconciliations"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", org.hamcrest.Matchers.hasSize(2)))
+                .andExpect(jsonPath("$[0].runId").value(secondRunId))
+                .andExpect(jsonPath("$[0].status").value("COMPLETED"))
+                .andExpect(jsonPath("$[0].exceptionCount").value(1))
+                .andExpect(jsonPath("$[1].runId").value(firstRunId))
+                .andExpect(jsonPath("$[1].status").value("COMPLETED"));
+    }
+
+    @Test
     void getsReconciliationResultsWithRelatedTrades() throws Exception {
         Long runId = createPriceMismatchRun();
 
@@ -375,7 +390,7 @@ class ReconciliationControllerIntegrationTest {
                         .file(externalFile))
                 .andExpect(status().isCreated());
 
-        return runRepository.findAll().get(0).getId();
+        return latestRunId();
     }
 
     private Long createDuplicateRun() throws Exception {
@@ -394,11 +409,18 @@ class ReconciliationControllerIntegrationTest {
                         .file(externalFile))
                 .andExpect(status().isCreated());
 
-        return runRepository.findAll().get(0).getId();
+        return latestRunId();
     }
 
     private Long resultId(Long runId, ReconciliationStatus status) {
         return resultRepository.findByRunIdAndStatusOrderById(runId, status).get(0).getId();
+    }
+
+    private Long latestRunId() {
+        return runRepository.findAll().stream()
+                .map(run -> run.getId())
+                .max(Long::compareTo)
+                .orElseThrow();
     }
 
     private void resolveResult(Long resultId, String resolutionStatus, String note) throws Exception {

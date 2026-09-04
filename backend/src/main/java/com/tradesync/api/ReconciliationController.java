@@ -42,6 +42,11 @@ public class ReconciliationController {
         return ResponseEntity.created(location).body(response);
     }
 
+    @GetMapping(produces = MediaType.APPLICATION_JSON_VALUE)
+    public List<ReconciliationRunResponse> getRecentReconciliations() {
+        return queryService.getRecentRuns();
+    }
+
     @GetMapping(path = "/{runId}", produces = MediaType.APPLICATION_JSON_VALUE)
     public ReconciliationRunResponse getReconciliation(@PathVariable Long runId) {
         return queryService.getRun(runId);

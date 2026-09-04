@@ -50,6 +50,13 @@ public class ReconciliationQueryService {
     }
 
     @Transactional(readOnly = true)
+    public List<ReconciliationRunResponse> getRecentRuns() {
+        return runRepository.findTop20ByOrderByStartedAtDescIdDesc().stream()
+                .map(ReconciliationRunResponse::from)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
     public List<StoredReconciliationResultResponse> getResults(Long runId) {
         findRun(runId);
         List<ReconciliationResultEntity> results = resultRepository.findByRunIdOrderById(runId);
