@@ -6,7 +6,7 @@ services:
       POSTGRES_USER: tradesync
       POSTGRES_PASSWORD: tradesync
     ports:
-      - "5432:5432"
+      - "55432:5432"
     volumes:
       - tradesync-postgres-data:/var/lib/postgresql/data
 

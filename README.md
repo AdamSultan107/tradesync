@@ -174,6 +174,9 @@ Start PostgreSQL from the repository root:
 docker compose up -d
 ```
 
+The Compose setup exposes PostgreSQL on host port `55432` to avoid conflicts
+with local PostgreSQL installations that often use `5432`.
+
 Run the backend:
 
 ```bash
