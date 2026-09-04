@@ -340,7 +340,7 @@ function MobileHeader({
 
 function Brand({ compact = false }: { compact?: boolean }) {
   return (
-    <div className="flex min-w-0 shrink items-center gap-3">
+    <div className="flex shrink-0 items-center gap-3">
       <div className="flex size-9 items-center justify-center rounded-md bg-emerald-400 text-[#14201b]">
         <ArrowLeftRight aria-hidden="true" size={19} strokeWidth={2.4} />
       </div>

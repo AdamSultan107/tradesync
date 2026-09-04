@@ -34,7 +34,7 @@ export function RunOverview({ run }: { run: ReconciliationRun }) {
   return (
     <section
       aria-label="Run summary"
-      className="grid overflow-hidden border border-neutral-200 bg-white shadow-xs sm:grid-cols-2 xl:grid-cols-4"
+      className="grid grid-cols-2 overflow-hidden border border-neutral-200 bg-white shadow-xs xl:grid-cols-4"
     >
       {metrics.map((metric, index) => {
         const Icon = metric.icon;
@@ -42,9 +42,11 @@ export function RunOverview({ run }: { run: ReconciliationRun }) {
         return (
           <div
             key={metric.key}
-            className={`flex min-h-24 items-center gap-4 px-5 py-4 ${
-              index > 0 ? 'border-t border-neutral-200 sm:border-t-0 sm:border-l' : ''
-            } ${index === 2 ? 'sm:border-l-0 xl:border-l' : ''}`}
+            className={`flex min-h-24 items-center gap-3 px-4 py-4 sm:gap-4 sm:px-5 ${
+              index % 2 === 1 ? 'border-l border-neutral-200' : ''
+            } ${index >= 2 ? 'border-t border-neutral-200 xl:border-t-0' : ''} ${
+              index === 2 ? 'xl:border-l' : ''
+            }`}
           >
             <div className={`flex size-10 shrink-0 items-center justify-center rounded-md ${metric.iconClass}`}>
               <Icon aria-hidden="true" size={19} />
